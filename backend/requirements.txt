@@ -35,3 +35,8 @@ python-dotenv>=1.0.0
 
 # 数据验证
 pydantic>=2.0.0
+
+# ============= 部署与生产 =============
+gunicorn>=21.0.0
+gevent>=23.9.1
+json-repair>=0.30.0

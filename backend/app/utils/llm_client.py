@@ -92,22 +92,21 @@ class LLMClient:
         max_tokens: int = 4096
     ) -> Dict[str, Any]:
         """
-        Send chat request and return JSON
-
-        Args:
-            messages: Message list
-            temperature: Temperature parameter
-            max_tokens: Max token count
-
-        Returns:
-            Parsed JSON object
+        Send chat request and return JSON (fault-tolerant)
         """
+        from json_repair import repair_json
+        import json
+
+        # We remove the strict json_object format to increase compatibility across providers
         response = self.chat(
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"}
+            max_tokens=max_tokens
         )
+        
+        if not response:
+            raise ValueError("LLM returned an empty response")
+
         # Clean markdown code block markers
         cleaned_response = response.strip()
         cleaned_response = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_response, flags=re.IGNORECASE)
@@ -115,6 +114,12 @@ class LLMClient:
         cleaned_response = cleaned_response.strip()
 
         try:
+            # Try standard parsing first
             return json.loads(cleaned_response)
         except json.JSONDecodeError:
-            raise ValueError(f"Invalid JSON format from LLM: {cleaned_response}")
+            try:
+                # If it fails, use json-repair to fix truncated or malformed JSON
+                repaired = repair_json(cleaned_response)
+                return json.loads(repaired)
+            except Exception as e:
+                raise ValueError(f"Failed to parse or repair JSON from LLM: {cleaned_response}") from e
